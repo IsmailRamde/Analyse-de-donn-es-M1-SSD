@@ -1,0 +1,282 @@
+---
+title: "Mini Projet"
+author: "RAMDÉ Ismaïl"
+date: "`r format(Sys.time(), '%d, %B, %Y')`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
+```
+
+```{r, echo=FALSE}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(cowplot)
+library(PerformanceAnalytics)
+library(quantable)
+library(corrplot)
+library(GGally)
+library(MASS)
+library(readxl)
+library(ggpubr)
+library(gplots)
+library(PerformanceAnalytics)
+library(FactoMineR)
+library(factoextra)
+library(ca)
+library(fpc)
+library(reshape2)
+
+library(tidyverse)
+library(ggthemes)
+library(RColorBrewer)
+library(kableExtra)
+library(knitr)
+library(ggrepel)
+library(scales)
+library(gridExtra)
+library(tidytext)
+library(wordcloud)
+library(lubridate)
+#library(igraph)
+#library(ggraph)
+```
+
+
+**Chargement des données**
+```{r}
+prix_nobel <- read.csv("prixnobel.csv", header=TRUE, sep=";",fileEncoding="latin1", row.names=1) 
+```
+
+**1. Statistique descriptive de base**
+
+**Aperçu et visualisation des données**
+
+**- Aperçu**
+```{r}
+# Visualisation
+str(prix_nobel)
+
+# Affichage de quelques lignes
+head(prix_nobel)
+
+# Résumé
+summary(prix_nobel)
+```
+La pemière impression qu’on a de notre jeu de données est qu’elle est composée essentiellement de variables quantitatives (7 variables) et de 13 observations (pays/continents).
+A travers le résumé des différentes variables, on constate qu’il n’y a aucune valeur manquante (NA).
+
+Notre base de données semble être propre, donc pas de nettoyage a apporter de notre part. Elle est prête a être utilisée. 
+\newline
+
+
+**- Visualisation**
+```{r}
+# charger / générer nos données 
+prix_nobel <- data.frame(prix_nobel)
+prix_nobel$Category  <- row.names(prix_nobel)
+# Transformation des données au format selon les besoins pour ggplot
+pnobel <- melt(prix_nobel, value.name="Count", variable.name="Variable", na.rm=TRUE)
+head(pnobel)
+
+p<-ggplot(pnobel, aes(x=pnobel$Category, y=Count, fill=Variable)) +
+  geom_bar(stat="identity",aes(x=pnobel$Category))+theme_minimal()+
+  theme(axis.text.x = element_text(angle=45))+
+  ggtitle("Diagramme en Bâton des pays/continents en fonction du nombre des prix") +
+  xlab("Pays/continents") +
+  ylab("Effectifs") +
+  labs(fill = "Category(Catégorie)")
+p
+
+```
+
+Ce digramme nous permet de visualiser l’effectif des différents prix obtenus en fonction de chaque pays/continent.
+On remarque que de façon générale l’Europe est le continent qui a obtenu le plus grand nombre de prix tant-disque l’Océanie et l’Afrique totalisent les plus petits  effectifs. En ce qui concerne les pays ce sont les USA qui ont obtenus le plus de prix tant-disque le Canada a le plus petit nombre de prix.
+\newline
+
+**Matrice de scatter plot**
+```{r}
+# Retour à la base de donnée initiale après l'après l'ajout de la variable "Category"
+prix_nobel <- subset(prix_nobel, select = -Category)
+# matrice scatterplot et test
+pairs(prix_nobel, pch = 1, lower.panel=panel.smooth, upper.panel=panel.cor,diag.panel=panel.hist, col = "blue", main = "Matrice de Scatter plot et test")
+
+```
+
+Cette matrice nous montre qu’il y a de fortes corrélations s entre les différentes variables deux à deux. On voit aussi que leurs distributions en diagonale indiquent qu’elles ne suivent pas une loi normale, d’où la nécessité plus tard de normaliser (centrer et réduire) les données avant l’ACP, CAH et K-Means. 
+\newline
+
+
+**2. Analyse en Composantes Principales (ACP)**
+
+**- Normalisation des données et calculer l’ACP sur les individus/variables**
+```{r}
+res.pca <- PCA(prix_nobel, graph = FALSE)
+
+```
+
+**- Valeurs propres et la proportion de variances**
+```{r}
+eig.val <- get_eigenvalue(res.pca)
+eig.val
+```
+On voit qu’environ 97.40957% de la variance totale est expliquée par les deux premières valeurs propres. Les deux premières composantes principales expliquent 97.40957% de la variation.
+
+
+**- Graphique des valeurs propres**
+```{r}
+fviz_eig(res.pca, addlabels = TRUE, ylim = c(0, 100))
+```
+A travers ce graphe on voit bien que les deux premières composantes contiennent suffisamment d'information (97.40957% de la variance totale).
+\newline
+
+**- Qualité de représentation**
+```{r}
+# Extraction des résultats, pour les variables, à partir de l’ACP
+var <- get_pca_var(res.pca)
+# visualiser le cos2 des variables sur toutes les dimensions
+corrplot(var$cos2, is.corr=FALSE)
+```
+
+
+On remarque que sur la Dimension 1, les variables Chimie, Médecine, Paix, Physique et Mathématiques sont très biens représentées tan-disque les variables Economie et Littérature biens représentées. Et sur la Dimension 2 les variables Economie et Littérature sont faiblements représentées.
+\newline
+
+**- Visualisons les variables**
+```{r}
+fviz_pca_var(res.pca, col.var = "cos2",
+gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+repel = TRUE) #repel = TRUE évite le chevauchement de texte
+
+```
+
+On voit sur ce graphe que toutes les variables sont biens représentées car elles sont proches du cercle de corrélation. Elles sont corrélées positivement.
+\newline
+
+**Contribution des variables**
+```{r}
+fviz_contrib(res.pca, choice = "var", axes = 1 :2, ylim = c(0, 15))
+```
+
+Globalement toutes les variables ont une bonne contribution aux deux dimensions. A part la variable Mathématiques qui est légèrement en-dessous des autres. 
+\newline
+
+**- Qualité et contribution des individus**
+```{r}
+fviz_pca_ind(res.pca, col.ind = "cos2", pointsize = "cos2",
+gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+```
+
+On remarque d'une part en rouge les individus qui on une bonne contribution (USA, Europe, Canada, ...) et au fur à mesure que l'on descend en couleur la contribution diminue aussi, c'est le cas par exemple de la GB et l'Allemagne qui n'ont pas une bonne contribution.
+
+Et d'autre part des proximités entre certains individus :
+
+- les USA et l’Amérique
+- Le Canada, l’Océanie, le Japon, l’Italie et L’Afrique
+- La France et l’Asie et la Russie
+- La GB et l'Allemagne
+
+Notons également un individus atypique (l’Europe) qui s’écarte fortement des autres.
+\newline
+
+
+**- Créons un biplot des individus et des variables**
+```{r}
+fviz_pca_biplot(res.pca, repel = TRUE, col.var = "#2E9FDF", col.ind = "#696969")
+```
+
+On constate que les USA, l’Amérique et l’Europe sont les individus qui ont des grandes valeurs pour toutes variables (différents prix Nobel). Les autres variables ont des valeurs relativement faibles.
+\newline
+
+
+**3. Classification Automatique CAH et K-Means **
+
+**- Classification Ascendante Hiérarchique**
+```{r}
+# hclust
+
+# centrage réduction des données
+# pour éviter que les variables à forte variance pèsent indûment sur les résultats
+prix_nobel.cr <-scale(prix_nobel,center=T,scale=T)
+
+# matrice des distances entre individus
+d.prix_nobel<-dist(prix_nobel.cr)
+
+# CAH -critère de Ward
+# method= «ward.D2» correspond au vrai critère de Ward
+# utilisant le carré de la distance
+cah.ward<-hclust(d.prix_nobel,method="ward.D2")
+
+# affichage du dendrogramme
+plot(cah.ward)
+```
+
+De façon automatique notre dendrogramme suggère 4 groupes.
+\newline
+
+
+```{r}
+# découpage en 4 groupes
+groupes.cah <-cutree(cah.ward,k=4)
+
+# liste des groupes
+print(sort(groupes.cah))
+```
+
+
+**- Méthode des centres mobiles (K-means)**
+
+Nous allons a présent tenter de d’améliorer notre modèle, c’est à dire trouver le nombre de groupe optimal tout en nous basant sur les résultats du découpage de la méthode automatique CAH.
+
+```{r}
+# K-means avec les données centrées et réduites
+# center = 4 : nombre de groupes demandés
+# nstart = 5 : nombre d’essais avec différents individus de départ
+groupes.kmeans <- kmeans(prix_nobel.cr,centers=4,nstart=5)
+# Affichage des résultats
+print(groupes.kmeans)
+
+# les correspondances des groupes entre CAH et K-Means :
+print(table(groupes.cah,groupes.kmeans$cluster))
+
+```
+
+
+```{r}
+# Evaluer la proportion d’inertie expliquée
+inertie.expl <- rep(0, times=7)
+for (k in 2 :7){
+  clus <- kmeans(prix_nobel.cr,centers=k,nstart=5)
+  inertie.expl[k] <- clus$betweenss/clus$totss
+}
+# Graphique
+plot(1 :7,inertie.expl,type="b",xlab="Nb. de groupes",ylab="% inertie expliquée")
+```
+
+A partir de k = 3 classes, l’adjonction d’un groupe supplémentaire n’augmente pas «significativement» la part d’inertie expliquée par la partition.
+
+Nous allons donc proceder par un decoupage en 3 groupes à l'aide de la commande rect.hclust:
+```{r}
+# affichage du dendrogramme
+plot(cah.ward)
+
+# Découpage en classes/groupes
+#dendrogramme avec matérialisation des groupes
+rect.hclust(cah.ward,k=3)
+
+# découpage en 3 groupes
+groupes.cah2 <-cutree(cah.ward,k=3)
+
+# liste des groupes
+print(sort(groupes.cah2))
+```
+
+
+
+
+
